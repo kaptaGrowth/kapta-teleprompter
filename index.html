@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Kapta Teleprompter</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0; padding: 0;
+      width: 100%; height: 100%;
+      background: #000;
+      color: #fff;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      overflow: hidden;
+      touch-action: none;
+    }
+
+    #setup {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      padding: 20px;
+      gap: 14px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 24px;
+      letter-spacing: 1px;
+      color: #fff;
+      text-align: center;
+    }
+
+    h1 span { color: #C5A059; }
+
+    textarea {
+      flex: 1;
+      width: 100%;
+      background: #111;
+      color: #fff;
+      border: 1px solid #333;
+      border-radius: 12px;
+      padding: 16px;
+      font-size: 18px;
+      line-height: 1.5;
+      resize: none;
+      outline: none;
+    }
+
+    .row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .row label { font-size: 14px; color: #aaa; }
+
+    input[type="range"] { flex: 1; min-width: 120px; }
+
+    button {
+      flex: 1;
+      min-width: 90px;
+      padding: 14px 10px;
+      border: none;
+      border-radius: 10px;
+      background: #C5A059;
+      color: #000;
+      font-weight: 700;
+      font-size: 16px;
+      cursor: pointer;
+    }
+
+    button.secondary {
+      background: #222;
+      color: #fff;
+      border: 1px solid #444;
+    }
+
+    #prompter {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: #000;
+      overflow: hidden;
+    }
+
+    #text {
+      position: absolute;
+      top: 100%;
+      left: 0;
+      width: 100%;
+      padding: 40px 30px 120vh 30px;
+      font-size: 48px;
+      line-height: 1.6;
+      color: #fff;
+      white-space: pre-wrap;
+      will-change: transform;
+      transform-origin: center center;
+    }
+
+    #text.mirror { transform: scaleX(-1); }
+
+    #controls {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      display: flex;
+      gap: 8px;
+      padding: 12px;
+      background: rgba(0,0,0,0.75);
+      backdrop-filter: blur(8px);
+      z-index: 10;
+    }
+
+    #controls button {
+      flex: 1;
+      padding: 14px 6px;
+      font-size: 14px;
+    }
+
+    .hint {
+      text-align: center;
+      font-size: 12px;
+      color: #666;
+      margin-top: 4px;
+    }
+
+    @media (min-width: 768px) {
+      #text { font-size: 64px; padding: 60px 80px 120vh 80px; }
+    }
+  </style>
+</head>
+<body>
+  <div id="setup">
+    <h1><span>KAPTA</span> TELEPROMPTER</h1>
+    <textarea id="input" placeholder="Cole seu roteiro aqui..."></textarea>
+    <div class="row">
+      <label>Velocidade</label>
+      <input type="range" id="speed" min="1" max="100" value="35" />
+    </div>
+    <div class="row">
+      <label>Tamanho</label>
+      <input type="range" id="size" min="20" max="120" value="48" />
+    </div>
+    <div class="row">
+      <button id="start">▶ Iniciar</button>
+      <button id="mirrorBtn" class="secondary">⇄ Espelhar</button>
+    </div>
+    <div class="hint">Use no iPad em modo paisagem. Toque nos botões durante a leitura.</div>
+  </div>
+
+  <div id="prompter">
+    <div id="text"></div>
+    <div id="controls">
+      <button id="playPause">⏸ Pausar</button>
+      <button id="faster">+ Veloc</button>
+      <button id="slower">- Veloc</button>
+      <button id="bigger">A+</button>
+      <button id="smaller">A-</button>
+      <button id="flip" class="secondary">⇄ Espelho</button>
+      <button id="stop" class="secondary">✕ Sair</button>
+    </div>
+  </div>
+
+  <script>
+    const $ = id => document.getElementById(id);
+    const input = $('input');
+    const speed = $('speed');
+    const size = $('size');
+    const start = $('start');
+    const mirrorBtn = $('mirrorBtn');
+    const prompter = $('prompter');
+    const text = $('text');
+    const playPause = $('playPause');
+    const faster = $('faster');
+    const slower = $('slower');
+    const bigger = $('bigger');
+    const smaller = $('smaller');
+    const flip = $('flip');
+    const stop = $('stop');
+
+    let isRunning = false;
+    let pos = 0;
+    let raf = null;
+    let mirrored = false;
+
+    input.value = localStorage.getItem('kapta_teleprompter_text') || '';
+    speed.value = localStorage.getItem('kapta_teleprompter_speed') || '35';
+    size.value = localStorage.getItem('kapta_teleprompter_size') || '48';
+
+    input.addEventListener('input', () => localStorage.setItem('kapta_teleprompter_text', input.value));
+    speed.addEventListener('input', () => localStorage.setItem('kapta_teleprompter_speed', speed.value));
+    size.addEventListener('input', () => localStorage.setItem('kapta_teleprompter_size', size.value));
+
+    mirrorBtn.addEventListener('click', () => {
+      mirrored = !mirrored;
+      text.classList.toggle('mirror', mirrored);
+      mirrorBtn.textContent = mirrored ? '⇄ Normal' : '⇄ Espelhar';
+    });
+
+    start.addEventListener('click', () => {
+      if (!input.value.trim()) return;
+      text.textContent = input.value;
+      text.style.fontSize = size.value + 'px';
+      text.classList.toggle('mirror', mirrored);
+      prompter.style.display = 'block';
+      document.documentElement.requestFullscreen?.().catch(() => {});
+      screen.orientation?.lock?.('landscape').catch(() => {});
+      pos = window.innerHeight;
+      isRunning = true;
+      update();
+    });
+
+    function update() {
+      if (!isRunning) return;
+      const pxPerFrame = speed.value * 0.04;
+      pos -= pxPerFrame;
+      const end = -text.scrollHeight - 200;
+      if (pos < end) {
+        pos = end;
+        isRunning = false;
+        playPause.textContent = '▶ Retomar';
+      }
+      text.style.transform = `translateY(${pos}px)${mirrored ? ' scaleX(-1)' : ''}`;
+      raf = requestAnimationFrame(update);
+    }
+
+    playPause.addEventListener('click', () => {
+      isRunning = !isRunning;
+      playPause.textContent = isRunning ? '⏸ Pausar' : '▶ Retomar';
+      if (isRunning) update();
+    });
+
+    faster.addEventListener('click', () => { speed.value = Math.min(100, +speed.value + 5); });
+    slower.addEventListener('click', () => { speed.value = Math.max(1, +speed.value - 5); });
+    bigger.addEventListener('click', () => { size.value = Math.min(120, +size.value + 4); text.style.fontSize = size.value + 'px'; });
+    smaller.addEventListener('click', () => { size.value = Math.max(20, +size.value - 4); text.style.fontSize = size.value + 'px'; });
+
+    flip.addEventListener('click', () => {
+      mirrored = !mirrored;
+      text.classList.toggle('mirror', mirrored);
+      flip.textContent = mirrored ? 'Normal' : 'Espelho';
+    });
+
+    stop.addEventListener('click', () => {
+      cancelAnimationFrame(raf);
+      isRunning = false;
+      prompter.style.display = 'none';
+      document.exitFullscreen?.().catch(() => {});
+      screen.orientation?.unlock?.().catch(() => {});
+    });
+
+    let touchStartY = 0;
+    document.addEventListener('touchstart', e => { touchStartY = e.touches[0].clientY; });
+    document.addEventListener('touchmove', e => {
+      const delta = e.touches[0].clientY - touchStartY;
+      pos += delta * 1.5;
+      touchStartY = e.touches[0].clientY;
+    });
+
+    document.addEventListener('keydown', e => {
+      if (e.code === 'Space') { e.preventDefault(); playPause.click(); }
+      if (e.code === 'Escape') stop.click();
+      if (e.code === 'ArrowUp') { pos += 40; }
+      if (e.code === 'ArrowDown') { pos -= 40; }
+    });
+  </script>
+</body>
+</html>
