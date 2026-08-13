@@ -3,104 +3,196 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <title>Kapta Teleprompter</title>
   <style>
-    * { box-sizing: border-box; }
+    :root {
+      --gold: #C5A059;
+      --bg: #000000;
+      --panel: #111111;
+      --border: #333333;
+      --text: #ffffff;
+      --muted: #888888;
+      --safe-bottom: env(safe-area-inset-bottom, 0px);
+    }
+
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
     html, body {
       margin: 0; padding: 0;
       width: 100%; height: 100%;
-      background: #000;
-      color: #fff;
+      background: var(--bg);
+      color: var(--text);
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
       overflow: hidden;
       touch-action: none;
+      user-select: none;
+      -webkit-user-select: none;
     }
 
+    /* Setup screen */
     #setup {
       display: flex;
       flex-direction: column;
       height: 100%;
-      padding: 20px;
+      padding: max(20px, env(safe-area-inset-top)) 20px max(20px, env(safe-area-inset-bottom)) 20px;
       gap: 14px;
     }
 
     h1 {
       margin: 0;
-      font-size: 24px;
-      letter-spacing: 1px;
-      color: #fff;
+      font-size: clamp(20px, 5vw, 28px);
+      letter-spacing: 2px;
+      color: var(--text);
       text-align: center;
+      font-weight: 800;
     }
 
-    h1 span { color: #C5A059; }
+    h1 span { color: var(--gold); }
 
     textarea {
       flex: 1;
       width: 100%;
-      background: #111;
-      color: #fff;
-      border: 1px solid #333;
-      border-radius: 12px;
+      min-height: 120px;
+      background: var(--panel);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 14px;
       padding: 16px;
-      font-size: 18px;
-      line-height: 1.5;
+      font-size: 17px;
+      line-height: 1.55;
       resize: none;
       outline: none;
+      user-select: text;
+      -webkit-user-select: text;
     }
 
     .row {
       display: flex;
-      gap: 10px;
-      flex-wrap: wrap;
       align-items: center;
+      gap: 12px;
+      flex-wrap: nowrap;
     }
 
-    .row label { font-size: 14px; color: #aaa; }
+    .row label {
+      font-size: 14px;
+      color: var(--muted);
+      min-width: 68px;
+      white-space: nowrap;
+    }
 
-    input[type="range"] { flex: 1; min-width: 120px; }
+    .row .value {
+      font-size: 14px;
+      color: var(--gold);
+      min-width: 48px;
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
 
-    button {
+    input[type="range"] {
       flex: 1;
-      min-width: 90px;
-      padding: 14px 10px;
-      border: none;
-      border-radius: 10px;
-      background: #C5A059;
-      color: #000;
-      font-weight: 700;
-      font-size: 16px;
+      min-width: 80px;
+      accent-color: var(--gold);
+    }
+
+    .preview-label {
+      font-size: 12px;
+      color: var(--muted);
+      text-align: center;
+      margin-bottom: -8px;
+    }
+
+    .mirror-preview {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 16px;
+      text-align: center;
+      font-size: 18px;
+      color: var(--muted);
+      transition: transform 0.25s ease;
       cursor: pointer;
     }
 
-    button.secondary {
-      background: #222;
-      color: #fff;
-      border: 1px solid #444;
+    .mirror-preview.mirrored { transform: scaleX(-1); color: var(--text); }
+
+    .actions {
+      display: flex;
+      gap: 12px;
     }
 
+    button {
+      flex: 1;
+      padding: 16px 12px;
+      border: none;
+      border-radius: 12px;
+      background: var(--gold);
+      color: #000;
+      font-weight: 800;
+      font-size: 16px;
+      cursor: pointer;
+      transition: transform 0.05s ease, opacity 0.15s ease;
+    }
+
+    button:active { transform: scale(0.97); }
+
+    button.secondary {
+      background: var(--panel);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+
+    button:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    .hint {
+      text-align: center;
+      font-size: 12px;
+      color: #555;
+      line-height: 1.4;
+    }
+
+    /* Prompter screen */
     #prompter {
       display: none;
       position: fixed;
       inset: 0;
-      background: #000;
+      background: var(--bg);
       overflow: hidden;
+      z-index: 1;
     }
 
     #text {
       position: absolute;
-      top: 100%;
+      top: 0;
       left: 0;
       width: 100%;
-      padding: 40px 30px 120vh 30px;
+      min-height: 100%;
+      padding: 40px max(24px, env(safe-area-inset-right)) 50vh max(24px, env(safe-area-inset-left));
       font-size: 48px;
-      line-height: 1.6;
-      color: #fff;
+      line-height: 1.65;
+      color: var(--text);
       white-space: pre-wrap;
+      word-break: break-word;
       will-change: transform;
       transform-origin: center center;
     }
 
     #text.mirror { transform: scaleX(-1); }
+
+    #progress {
+      position: fixed;
+      top: 0;
+      left: 0;
+      height: 4px;
+      background: var(--gold);
+      width: 0%;
+      z-index: 20;
+      transition: width 0.1s linear;
+    }
 
     #controls {
       position: fixed;
@@ -109,164 +201,403 @@
       width: 100%;
       display: flex;
       gap: 8px;
-      padding: 12px;
-      background: rgba(0,0,0,0.75);
-      backdrop-filter: blur(8px);
+      padding: 12px 12px calc(12px + var(--safe-bottom)) 12px;
+      background: rgba(0,0,0,0.78);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
       z-index: 10;
     }
 
     #controls button {
-      flex: 1;
-      padding: 14px 6px;
-      font-size: 14px;
+      flex: 1 1 0;
+      padding: 14px 4px;
+      font-size: 13px;
+      min-width: 0;
+      white-space: nowrap;
     }
 
-    .hint {
-      text-align: center;
-      font-size: 12px;
-      color: #666;
-      margin-top: 4px;
-    }
+    #controls button.secondary { opacity: 0.9; }
 
+    /* Tablet / landscape adjustments */
     @media (min-width: 768px) {
-      #text { font-size: 64px; padding: 60px 80px 120vh 80px; }
+      #text { font-size: 64px; padding-left: max(60px, env(safe-area-inset-left)); padding-right: max(60px, env(safe-area-inset-right)); }
+      #controls button { font-size: 15px; padding: 16px 8px; }
+    }
+
+    @media (max-height: 400px) {
+      #text { padding-top: 20px; }
+      #controls button { padding: 10px 4px; font-size: 12px; }
     }
   </style>
 </head>
 <body>
   <div id="setup">
     <h1><span>KAPTA</span> TELEPROMPTER</h1>
+
     <textarea id="input" placeholder="Cole seu roteiro aqui..."></textarea>
+
     <div class="row">
       <label>Velocidade</label>
       <input type="range" id="speed" min="1" max="100" value="35" />
+      <span class="value" id="speedValue">35</span>
     </div>
+
     <div class="row">
       <label>Tamanho</label>
-      <input type="range" id="size" min="20" max="120" value="48" />
+      <input type="range" id="size" min="24" max="140" value="56" />
+      <span class="value" id="sizeValue">56</span>
     </div>
-    <div class="row">
+
+    <div class="preview-label">Toque no quadro abaixo para pré-visualizar o espelhamento</div>
+    <div class="mirror-preview" id="mirrorPreview">Texto espelhado</div>
+
+    <div class="actions">
       <button id="start">▶ Iniciar</button>
       <button id="mirrorBtn" class="secondary">⇄ Espelhar</button>
     </div>
-    <div class="hint">Use no iPad em modo paisagem. Toque nos botões durante a leitura.</div>
+
+    <div class="hint">
+      Use no iPad em modo paisagem. Os controles aparecem na parte inferior durante a leitura. Toque para pausar ou deslize para ajustar a posição.
+    </div>
   </div>
 
   <div id="prompter">
+    <div id="progress"></div>
     <div id="text"></div>
     <div id="controls">
       <button id="playPause">⏸ Pausar</button>
       <button id="faster">+ Veloc</button>
-      <button id="slower">- Veloc</button>
+      <button id="slower">− Veloc</button>
       <button id="bigger">A+</button>
-      <button id="smaller">A-</button>
+      <button id="smaller">A−</button>
       <button id="flip" class="secondary">⇄ Espelho</button>
       <button id="stop" class="secondary">✕ Sair</button>
     </div>
   </div>
 
   <script>
-    const $ = id => document.getElementById(id);
-    const input = $('input');
-    const speed = $('speed');
-    const size = $('size');
-    const start = $('start');
-    const mirrorBtn = $('mirrorBtn');
-    const prompter = $('prompter');
-    const text = $('text');
-    const playPause = $('playPause');
-    const faster = $('faster');
-    const slower = $('slower');
-    const bigger = $('bigger');
-    const smaller = $('smaller');
-    const flip = $('flip');
-    const stop = $('stop');
+    (function() {
+      'use strict';
 
-    let isRunning = false;
-    let pos = 0;
-    let raf = null;
-    let mirrored = false;
+      const $ = id => document.getElementById(id);
 
-    input.value = localStorage.getItem('kapta_teleprompter_text') || '';
-    speed.value = localStorage.getItem('kapta_teleprompter_speed') || '35';
-    size.value = localStorage.getItem('kapta_teleprompter_size') || '48';
+      const input = $('input');
+      const speedInput = $('speed');
+      const sizeInput = $('size');
+      const speedValue = $('speedValue');
+      const sizeValue = $('sizeValue');
+      const startBtn = $('start');
+      const mirrorBtn = $('mirrorBtn');
+      const mirrorPreview = $('mirrorPreview');
+      const prompter = $('prompter');
+      const textEl = $('text');
+      const progressEl = $('progress');
+      const playPauseBtn = $('playPause');
+      const fasterBtn = $('faster');
+      const slowerBtn = $('slower');
+      const biggerBtn = $('bigger');
+      const smallerBtn = $('smaller');
+      const flipBtn = $('flip');
+      const stopBtn = $('stop');
 
-    input.addEventListener('input', () => localStorage.setItem('kapta_teleprompter_text', input.value));
-    speed.addEventListener('input', () => localStorage.setItem('kapta_teleprompter_speed', speed.value));
-    size.addEventListener('input', () => localStorage.setItem('kapta_teleprompter_size', size.value));
+      const STORAGE_KEYS = {
+        text: 'kapta_teleprompter_text',
+        speed: 'kapta_teleprompter_speed',
+        size: 'kapta_teleprompter_size',
+        mirror: 'kapta_teleprompter_mirror'
+      };
 
-    mirrorBtn.addEventListener('click', () => {
-      mirrored = !mirrored;
-      text.classList.toggle('mirror', mirrored);
-      mirrorBtn.textContent = mirrored ? '⇄ Normal' : '⇄ Espelhar';
-    });
+      // State
+      let state = {
+        running: false,
+        mirrored: false,
+        y: 0,
+        speedSlider: 35,
+        fontSize: 56,
+        totalDistance: 0,
+        raf: null,
+        lastFrameTime: 0,
+        touchDragging: false,
+        touchLastY: 0,
+        wheelMomentum: 0
+      };
 
-    start.addEventListener('click', () => {
-      if (!input.value.trim()) return;
-      text.textContent = input.value;
-      text.style.fontSize = size.value + 'px';
-      text.classList.toggle('mirror', mirrored);
-      prompter.style.display = 'block';
-      document.documentElement.requestFullscreen?.().catch(() => {});
-      screen.orientation?.lock?.('landscape').catch(() => {});
-      pos = window.innerHeight;
-      isRunning = true;
-      update();
-    });
+      // Helpers
+      const clamp = (val, min, max) => Math.max(min, Math.min(max, val));
+      const pxPerSecond = slider => 20 + Math.pow(slider / 100, 1.6) * 260; // 20 ~ 280 px/s
 
-    function update() {
-      if (!isRunning) return;
-      const pxPerFrame = speed.value * 0.04;
-      pos -= pxPerFrame;
-      const end = -text.scrollHeight - 200;
-      if (pos < end) {
-        pos = end;
-        isRunning = false;
-        playPause.textContent = '▶ Retomar';
+      function loadState() {
+        input.value = localStorage.getItem(STORAGE_KEYS.text) || '';
+        state.speedSlider = clamp(parseFloat(localStorage.getItem(STORAGE_KEYS.speed)) || 35, 1, 100);
+        state.fontSize = clamp(parseFloat(localStorage.getItem(STORAGE_KEYS.size)) || 56, 24, 140);
+        state.mirrored = (localStorage.getItem(STORAGE_KEYS.mirror) === '1');
+
+        speedInput.value = state.speedSlider;
+        sizeInput.value = state.fontSize;
+        speedValue.textContent = state.speedSlider;
+        sizeValue.textContent = state.fontSize;
+        updateMirrorUI();
       }
-      text.style.transform = `translateY(${pos}px)${mirrored ? ' scaleX(-1)' : ''}`;
-      raf = requestAnimationFrame(update);
-    }
 
-    playPause.addEventListener('click', () => {
-      isRunning = !isRunning;
-      playPause.textContent = isRunning ? '⏸ Pausar' : '▶ Retomar';
-      if (isRunning) update();
-    });
+      function saveState() {
+        localStorage.setItem(STORAGE_KEYS.text, input.value);
+        localStorage.setItem(STORAGE_KEYS.speed, state.speedSlider);
+        localStorage.setItem(STORAGE_KEYS.size, state.fontSize);
+        localStorage.setItem(STORAGE_KEYS.mirror, state.mirrored ? '1' : '0');
+      }
 
-    faster.addEventListener('click', () => { speed.value = Math.min(100, +speed.value + 5); });
-    slower.addEventListener('click', () => { speed.value = Math.max(1, +speed.value - 5); });
-    bigger.addEventListener('click', () => { size.value = Math.min(120, +size.value + 4); text.style.fontSize = size.value + 'px'; });
-    smaller.addEventListener('click', () => { size.value = Math.max(20, +size.value - 4); text.style.fontSize = size.value + 'px'; });
+      function updateMirrorUI() {
+        textEl.classList.toggle('mirror', state.mirrored);
+        mirrorPreview.classList.toggle('mirrored', state.mirrored);
+        mirrorBtn.textContent = state.mirrored ? '⇄ Normal' : '⇄ Espelhar';
+        flipBtn.textContent = state.mirrored ? 'Normal' : '⇄ Espelho';
+      }
 
-    flip.addEventListener('click', () => {
-      mirrored = !mirrored;
-      text.classList.toggle('mirror', mirrored);
-      flip.textContent = mirrored ? 'Normal' : 'Espelho';
-    });
+      function toggleMirror() {
+        state.mirrored = !state.mirrored;
+        updateMirrorUI();
+        saveState();
+      }
 
-    stop.addEventListener('click', () => {
-      cancelAnimationFrame(raf);
-      isRunning = false;
-      prompter.style.display = 'none';
-      document.exitFullscreen?.().catch(() => {});
-      screen.orientation?.unlock?.().catch(() => {});
-    });
+      function setFontSize(size) {
+        state.fontSize = clamp(size, 24, 140);
+        sizeInput.value = state.fontSize;
+        sizeValue.textContent = state.fontSize;
+        textEl.style.fontSize = state.fontSize + 'px';
+        saveState();
+        recalcTotalDistance();
+      }
 
-    let touchStartY = 0;
-    document.addEventListener('touchstart', e => { touchStartY = e.touches[0].clientY; });
-    document.addEventListener('touchmove', e => {
-      const delta = e.touches[0].clientY - touchStartY;
-      pos += delta * 1.5;
-      touchStartY = e.touches[0].clientY;
-    });
+      function setSpeedSlider(val) {
+        state.speedSlider = clamp(val, 1, 100);
+        speedInput.value = state.speedSlider;
+        speedValue.textContent = state.speedSlider;
+        saveState();
+      }
 
-    document.addEventListener('keydown', e => {
-      if (e.code === 'Space') { e.preventDefault(); playPause.click(); }
-      if (e.code === 'Escape') stop.click();
-      if (e.code === 'ArrowUp') { pos += 40; }
-      if (e.code === 'ArrowDown') { pos -= 40; }
-    });
+      function recalcTotalDistance() {
+        // Text starts with its top at y=0 (top of viewport).
+        // We want it to scroll up until the last line leaves the top.
+        // But we also add bottom padding so it pauses readable at the end.
+        const textHeight = textEl.offsetHeight;
+        const viewportHeight = window.innerHeight;
+        // Distance from y=0 (first line at bottom of screen) to y=-(textHeight) (all gone).
+        // Actually first line should start at bottom: initial y = viewportHeight.
+        // End when last line passes top: y = -(textHeight).
+        state.totalDistance = textHeight + viewportHeight;
+      }
+
+      function applyY() {
+        const limit = state.totalDistance;
+        state.y = clamp(state.y, -limit, window.innerHeight);
+        const transform = `translateY(${state.y}px)`;
+        textEl.style.transform = state.mirrored ? `${transform} scaleX(-1)` : transform;
+
+        // Progress bar
+        const progress = limit > 0 ? clamp((window.innerHeight - state.y) / (window.innerHeight + limit), 0, 1) : 0;
+        progressEl.style.width = (progress * 100) + '%';
+      }
+
+      function frame(now) {
+        if (!state.running) return;
+        if (!state.lastFrameTime) state.lastFrameTime = now;
+        const dt = (now - state.lastFrameTime) / 1000;
+        state.lastFrameTime = now;
+
+        // Cap dt to avoid huge jumps after tab resume
+        const safeDt = Math.min(dt, 0.1);
+
+        state.y -= pxPerSecond(state.speedSlider) * safeDt;
+
+        const limit = state.totalDistance;
+        if (state.y <= -limit) {
+          state.y = -limit;
+          state.running = false;
+          playPauseBtn.textContent = '▶ Retomar';
+          state.lastFrameTime = 0;
+        }
+
+        applyY();
+
+        if (state.running) {
+          state.raf = requestAnimationFrame(frame);
+        }
+      }
+
+      function startScroll() {
+        if (!input.value.trim()) return;
+        textEl.textContent = input.value;
+        textEl.style.fontSize = state.fontSize + 'px';
+        updateMirrorUI();
+
+        prompter.style.display = 'block';
+
+        // Enter fullscreen / landscape when possible
+        const el = document.documentElement;
+        if (el.requestFullscreen) el.requestFullscreen().catch(() => {});
+        else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen().catch(() => {});
+        if (screen.orientation?.lock) screen.orientation.lock('landscape').catch(() => {});
+
+        // Position first line at the bottom of the screen
+        state.y = window.innerHeight;
+        state.running = true;
+        state.lastFrameTime = 0;
+        state.wheelMomentum = 0;
+
+        // Recalc after layout is painted
+        requestAnimationFrame(() => {
+          recalcTotalDistance();
+          applyY();
+          cancelAnimationFrame(state.raf);
+          state.raf = requestAnimationFrame(frame);
+        });
+
+        saveState();
+      }
+
+      function pauseScroll() {
+        state.running = false;
+        cancelAnimationFrame(state.raf);
+        state.lastFrameTime = 0;
+        playPauseBtn.textContent = '▶ Retomar';
+      }
+
+      function resumeScroll() {
+        if (!prompter.style.display || prompter.style.display === 'none') return;
+        state.running = true;
+        state.lastFrameTime = 0;
+        playPauseBtn.textContent = '⏸ Pausar';
+        state.raf = requestAnimationFrame(frame);
+      }
+
+      function togglePlayPause() {
+        if (state.running) pauseScroll();
+        else resumeScroll();
+      }
+
+      function stopScroll() {
+        pauseScroll();
+        prompter.style.display = 'none';
+        if (document.exitFullscreen) document.exitFullscreen().catch(() => {});
+        else if (document.webkitExitFullscreen) document.webkitExitFullscreen().catch(() => {});
+        if (screen.orientation?.unlock) screen.orientation.unlock().catch(() => {});
+      }
+
+      // Event listeners
+      input.addEventListener('input', saveState);
+
+      speedInput.addEventListener('input', () => {
+        setSpeedSlider(+speedInput.value);
+      });
+
+      sizeInput.addEventListener('input', () => {
+        setFontSize(+sizeInput.value);
+        // Recalc distance in case prompter is open
+        if (prompter.style.display === 'block') {
+          recalcTotalDistance();
+          applyY();
+        }
+      });
+
+      mirrorBtn.addEventListener('click', toggleMirror);
+      mirrorPreview.addEventListener('click', toggleMirror);
+      flipBtn.addEventListener('click', toggleMirror);
+
+      startBtn.addEventListener('click', startScroll);
+      playPauseBtn.addEventListener('click', togglePlayPause);
+      stopBtn.addEventListener('click', stopScroll);
+
+      fasterBtn.addEventListener('click', () => setSpeedSlider(state.speedSlider + 5));
+      slowerBtn.addEventListener('click', () => setSpeedSlider(state.speedSlider - 5));
+      biggerBtn.addEventListener('click', () => setFontSize(state.fontSize + 4));
+      smallerBtn.addEventListener('click', () => setFontSize(state.fontSize - 4));
+
+      // Touch drag to reposition
+      textEl.addEventListener('touchstart', e => {
+        state.touchDragging = true;
+        state.touchLastY = e.touches[0].clientY;
+        pauseScroll();
+      }, { passive: true });
+
+      window.addEventListener('touchmove', e => {
+        if (!state.touchDragging) return;
+        const y = e.touches[0].clientY;
+        const delta = y - state.touchLastY;
+        state.touchLastY = y;
+        state.y += delta * 1.6;
+        applyY();
+      }, { passive: true });
+
+      window.addEventListener('touchend', () => {
+        state.touchDragging = false;
+      });
+
+      // Mouse wheel / trackpad
+      window.addEventListener('wheel', e => {
+        if (prompter.style.display !== 'block') return;
+        e.preventDefault();
+        state.wheelMomentum += e.deltaY;
+        state.y -= e.deltaY;
+        applyY();
+      }, { passive: false });
+
+      // Keyboard shortcuts
+      document.addEventListener('keydown', e => {
+        if (prompter.style.display !== 'block') {
+          if (e.code === 'Enter' && e.metaKey) startScroll();
+          return;
+        }
+        if (e.code === 'Space') {
+          e.preventDefault();
+          togglePlayPause();
+        }
+        if (e.code === 'Escape') {
+          e.preventDefault();
+          stopScroll();
+        }
+        if (e.code === 'ArrowUp') {
+          e.preventDefault();
+          state.y += 60;
+          applyY();
+        }
+        if (e.code === 'ArrowDown') {
+          e.preventDefault();
+          state.y -= 60;
+          applyY();
+        }
+        if (e.code === 'ArrowLeft') {
+          e.preventDefault();
+          setSpeedSlider(state.speedSlider - 3);
+        }
+        if (e.code === 'ArrowRight') {
+          e.preventDefault();
+          setSpeedSlider(state.speedSlider + 3);
+        }
+      });
+
+      // Recalculate on resize / orientation change
+      let resizeTimer;
+      window.addEventListener('resize', () => {
+        clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(() => {
+          recalcTotalDistance();
+          applyY();
+        }, 150);
+      });
+
+      window.addEventListener('orientationchange', () => {
+        setTimeout(() => {
+          recalcTotalDistance();
+          applyY();
+        }, 300);
+      });
+
+      // Prevent controls from accidentally selecting text
+      document.getElementById('controls').addEventListener('touchstart', e => e.stopPropagation(), { passive: true });
+
+      // Initialize
+      loadState();
+    })();
   </script>
 </body>
 </html>
