@@ -31,7 +31,6 @@
       -webkit-user-select: none;
     }
 
-    /* Setup screen */
     #setup {
       display: flex;
       flex-direction: column;
@@ -148,14 +147,6 @@
       cursor: not-allowed;
     }
 
-    .hint {
-      text-align: center;
-      font-size: 12px;
-      color: #555;
-      line-height: 1.4;
-    }
-
-    /* Prompter screen */
     #prompter {
       display: none;
       position: fixed;
@@ -218,7 +209,6 @@
 
     #controls button.secondary { opacity: 0.9; }
 
-    /* Tablet / landscape adjustments */
     @media (min-width: 768px) {
       #text { font-size: 64px; padding-left: max(60px, env(safe-area-inset-left)); padding-right: max(60px, env(safe-area-inset-right)); }
       #controls button { font-size: 15px; padding: 16px 8px; }
@@ -307,7 +297,6 @@
         mirror: 'kapta_teleprompter_mirror'
       };
 
-      // State
       let state = {
         running: false,
         mirrored: false,
@@ -316,13 +305,12 @@
         fontSize: 56,
         totalDistance: 0,
         raf: null,
-        lastFrameTime: 0,
+        scrollStartTime: 0,
+        elapsedTime: 0,
         touchDragging: false,
-        touchLastY: 0,
-        wheelMomentum: 0
+        touchLastY: 0
       };
 
-      // Helpers
       const clamp = (val, min, max) => Math.max(min, Math.min(max, val));
       const pxPerSecond = slider => 20 + Math.pow(slider / 100, 1.6) * 260; // 20 ~ 280 px/s
 
@@ -376,9 +364,6 @@
       }
 
       function recalcTotalDistance() {
-        // Text starts with its top at viewport bottom (y = viewportHeight).
-        // It scrolls up until the last line leaves the top (y = -textHeight).
-        // Total travel = viewportHeight + textHeight.
         const textHeight = textEl.offsetHeight;
         const viewportHeight = window.innerHeight;
         state.totalDistance = textHeight + viewportHeight;
@@ -387,36 +372,33 @@
       function applyY() {
         const travel = state.totalDistance || 1;
         const textHeight = textEl.offsetHeight || 0;
-        // Clamp: keep at least some content visible and don't scroll past the end.
         state.y = clamp(state.y, -textHeight, window.innerHeight);
         const transform = `translateY(${state.y}px)`;
         textEl.style.transform = state.mirrored ? `${transform} scaleX(-1)` : transform;
 
-        // Progress bar: 0% when at start, 100% when fully scrolled.
         const progress = clamp((window.innerHeight - state.y) / travel, 0, 1);
         progressEl.style.width = (progress * 100) + '%';
       }
 
       function frame(now) {
         if (!state.running) return;
-        if (!state.lastFrameTime) state.lastFrameTime = now;
-        const dt = (now - state.lastFrameTime) / 1000;
-        state.lastFrameTime = now;
 
-        // Cap dt to avoid huge jumps after tab resume
-        const safeDt = Math.min(dt, 0.1);
+        // Position is based on elapsed real time, so the scroll speed is
+        // identical regardless of refresh rate or throttling.
+        const elapsed = (now - state.scrollStartTime) / 1000;
+        state.y = window.innerHeight - pxPerSecond(state.speedSlider) * (state.elapsedTime + elapsed);
 
-        state.y -= pxPerSecond(state.speedSlider) * safeDt;
-
-        const limit = state.totalDistance;
-        if (state.y <= -limit) {
-          state.y = -limit;
+        const textHeight = textEl.offsetHeight || 0;
+        if (state.y <= -textHeight) {
+          state.y = -textHeight;
           state.running = false;
           playPauseBtn.textContent = '▶ Retomar';
-          state.lastFrameTime = 0;
+          state.elapsedTime = 0;
+          state.scrollStartTime = 0;
         }
 
         applyY();
+
 
         if (state.running) {
           state.raf = requestAnimationFrame(frame);
@@ -431,22 +413,20 @@
 
         prompter.style.display = 'block';
 
-        // Enter fullscreen / landscape when possible
         const el = document.documentElement;
         if (el.requestFullscreen) el.requestFullscreen().catch(() => {});
         else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen().catch(() => {});
         if (screen.orientation?.lock) screen.orientation.lock('landscape').catch(() => {});
 
-        // Position first line at the bottom of the screen
         state.y = window.innerHeight;
         state.running = true;
-        state.lastFrameTime = 0;
-        state.wheelMomentum = 0;
+        state.elapsedTime = 0;
+        state.scrollStartTime = performance.now();
 
-        // Recalc after layout is painted
         requestAnimationFrame(() => {
           recalcTotalDistance();
           applyY();
+
           cancelAnimationFrame(state.raf);
           state.raf = requestAnimationFrame(frame);
         });
@@ -457,14 +437,15 @@
       function pauseScroll() {
         state.running = false;
         cancelAnimationFrame(state.raf);
-        state.lastFrameTime = 0;
+        state.elapsedTime += (performance.now() - state.scrollStartTime) / 1000;
+        state.scrollStartTime = 0;
         playPauseBtn.textContent = '▶ Retomar';
       }
 
       function resumeScroll() {
         if (!prompter.style.display || prompter.style.display === 'none') return;
         state.running = true;
-        state.lastFrameTime = 0;
+        state.scrollStartTime = performance.now();
         playPauseBtn.textContent = '⏸ Pausar';
         state.raf = requestAnimationFrame(frame);
       }
@@ -482,19 +463,15 @@
         if (screen.orientation?.unlock) screen.orientation.unlock().catch(() => {});
       }
 
-      // Event listeners
       input.addEventListener('input', saveState);
 
-      speedInput.addEventListener('input', () => {
-        setSpeedSlider(+speedInput.value);
-      });
-
+      speedInput.addEventListener('input', () => setSpeedSlider(+speedInput.value));
       sizeInput.addEventListener('input', () => {
         setFontSize(+sizeInput.value);
-        // Recalc distance in case prompter is open
         if (prompter.style.display === 'block') {
           recalcTotalDistance();
           applyY();
+
         }
       });
 
@@ -525,6 +502,7 @@
         state.touchLastY = y;
         state.y += delta * 1.25;
         applyY();
+
       }, { passive: true });
 
       window.addEventListener('touchend', () => {
@@ -535,9 +513,9 @@
       window.addEventListener('wheel', e => {
         if (prompter.style.display !== 'block') return;
         e.preventDefault();
-        state.wheelMomentum += e.deltaY;
         state.y -= e.deltaY;
         applyY();
+
       }, { passive: false });
 
       // Keyboard shortcuts
@@ -558,11 +536,13 @@
           e.preventDefault();
           state.y += 80;
           applyY();
+
         }
         if (e.code === 'ArrowDown') {
           e.preventDefault();
           state.y -= 80;
           applyY();
+
         }
         if (e.code === 'ArrowLeft') {
           e.preventDefault();
@@ -574,13 +554,13 @@
         }
       });
 
-      // Recalculate on resize / orientation change
       let resizeTimer;
       window.addEventListener('resize', () => {
         clearTimeout(resizeTimer);
         resizeTimer = setTimeout(() => {
           recalcTotalDistance();
           applyY();
+
         }, 150);
       });
 
@@ -588,13 +568,12 @@
         setTimeout(() => {
           recalcTotalDistance();
           applyY();
+
         }, 300);
       });
 
-      // Prevent controls from accidentally selecting text
       document.getElementById('controls').addEventListener('touchstart', e => e.stopPropagation(), { passive: true });
 
-      // Initialize
       loadState();
     })();
   </script>
