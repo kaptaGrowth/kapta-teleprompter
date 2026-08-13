@@ -376,25 +376,24 @@
       }
 
       function recalcTotalDistance() {
-        // Text starts with its top at y=0 (top of viewport).
-        // We want it to scroll up until the last line leaves the top.
-        // But we also add bottom padding so it pauses readable at the end.
+        // Text starts with its top at viewport bottom (y = viewportHeight).
+        // It scrolls up until the last line leaves the top (y = -textHeight).
+        // Total travel = viewportHeight + textHeight.
         const textHeight = textEl.offsetHeight;
         const viewportHeight = window.innerHeight;
-        // Distance from y=0 (first line at bottom of screen) to y=-(textHeight) (all gone).
-        // Actually first line should start at bottom: initial y = viewportHeight.
-        // End when last line passes top: y = -(textHeight).
         state.totalDistance = textHeight + viewportHeight;
       }
 
       function applyY() {
-        const limit = state.totalDistance;
-        state.y = clamp(state.y, -limit, window.innerHeight);
+        const travel = state.totalDistance || 1;
+        const textHeight = textEl.offsetHeight || 0;
+        // Clamp: keep at least some content visible and don't scroll past the end.
+        state.y = clamp(state.y, -textHeight, window.innerHeight);
         const transform = `translateY(${state.y}px)`;
         textEl.style.transform = state.mirrored ? `${transform} scaleX(-1)` : transform;
 
-        // Progress bar
-        const progress = limit > 0 ? clamp((window.innerHeight - state.y) / (window.innerHeight + limit), 0, 1) : 0;
+        // Progress bar: 0% when at start, 100% when fully scrolled.
+        const progress = clamp((window.innerHeight - state.y) / travel, 0, 1);
         progressEl.style.width = (progress * 100) + '%';
       }
 
@@ -524,7 +523,7 @@
         const y = e.touches[0].clientY;
         const delta = y - state.touchLastY;
         state.touchLastY = y;
-        state.y += delta * 1.6;
+        state.y += delta * 1.25;
         applyY();
       }, { passive: true });
 
@@ -557,12 +556,12 @@
         }
         if (e.code === 'ArrowUp') {
           e.preventDefault();
-          state.y += 60;
+          state.y += 80;
           applyY();
         }
         if (e.code === 'ArrowDown') {
           e.preventDefault();
-          state.y -= 60;
+          state.y -= 80;
           applyY();
         }
         if (e.code === 'ArrowLeft') {
